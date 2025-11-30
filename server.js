@@ -7,7 +7,7 @@ const OpenAI = require("openai");
 dotenv.config();
 
 const app = express();
-const port = process.env.PORT || 10000; // Render a PORT environment változót adja
+const port = process.env.PORT || 10000; // Render a PORT változóval dolgozik
 
 app.use(cors());
 app.use(express.json());
@@ -16,7 +16,7 @@ const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Egyszerű teszt a főoldalon
+// Egyszerű teszt endpoint
 app.get("/", (req, res) => {
   res.send("Chat backend running");
 });
@@ -29,33 +29,36 @@ app.post("/api/chat", async (req, res) => {
     return res.status(400).json({ error: "history mező hiányzik vagy üres" });
   }
 
-  // Csak az utolsó user üzenetet küldjük a modellnek – egyszerű, stabil megoldás
-  const lastUserMessage = history
-    .filter((m) => m.role === "user")
-    .slice(-1)[0]?.content;
-
-  if (!lastUserMessage) {
-    return res.status(400).json({ error: "Nincs user üzenet a history-ban" });
-  }
-
-  try {
-    const response = await client.responses.create({
-      model: "gpt-4.1-mini",
-      input: lastUserMessage,
-      instructions:
+  // History → OpenAI messages formátum
+  const messages = [
+    {
+      role: "system",
+      content:
         "You are a friendly English conversation tutor. " +
         "Speak only in English. " +
         "Use simple vocabulary and short sentences. " +
         "The student is around B1 level. " +
         "If the student makes a mistake, correct it gently and provide a better version."
+    },
+    ...history.map((m) => ({
+      role: m.role === "assistant" ? "assistant" : "user",
+      content: m.content || ""
+    }))
+  ];
+
+  try {
+    const completion = await client.chat.completions.create({
+      model: "gpt-4o-mini", // olcsó, gyors modell
+      messages,
+      temperature: 0.7
     });
 
-    // Egyszerű szövegkimenet
-    const reply = response.output_text;
+    const reply =
+      completion.choices?.[0]?.message?.content || "Sorry, I could not generate a reply.";
+
     res.json({ reply });
   } catch (error) {
     console.error("OpenAI hiba:", error?.response?.data || error.message || error);
-
     res.status(500).json({
       error: "Hiba történt az OpenAI hívás során a szerveren."
     });
