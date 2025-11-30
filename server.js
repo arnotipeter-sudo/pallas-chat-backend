@@ -1,6 +1,10 @@
-// server.js – TESZT VERZIÓ OPENAI NÉLKÜL
+// server.js – VÉGLEGES VERZIÓ OPENAI-VAL
 const express = require("express");
 const cors = require("cors");
+const dotenv = require("dotenv");
+const OpenAI = require("openai");
+
+dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 10000; // Render a PORT változót adja
@@ -8,12 +12,17 @@ const port = process.env.PORT || 10000; // Render a PORT változót adja
 app.use(cors());
 app.use(express.json());
 
-// Egyszerű teszt endpoint
-app.get("/", (req, res) => {
-  res.send("Chat backend running (TEST MODE, NO OPENAI)");
+// OpenAI kliens
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Chat endpoint – NINCS OpenAI, CSAK FIX VÁLASZ
+// Egyszerű healthcheck
+app.get("/", (req, res) => {
+  res.send("Chat backend running (OPENAI MODE)");
+});
+
+// Chat endpoint – Itt lép be az OpenAI
 app.post("/api/chat", async (req, res) => {
   const { history } = req.body;
 
@@ -21,16 +30,14 @@ app.post("/api/chat", async (req, res) => {
     return res.status(400).json({ error: "history mező hiányzik vagy üres" });
   }
 
-  const lastUserMessage = history.slice(-1)[0]?.content || "";
-
-  const reply =
-    'TEST VÁLASZ a szervertől. Ezt írtad: "' +
-    lastUserMessage +
-    '". Az OpenAI még NINCS bekapcsolva, csak a kapcsolatot teszteljük.';
-
-  res.json({ reply });
-});
-
-app.listen(port, () => {
-  console.log(`Server listening on port ${port} (TEST MODE)`);
-});
+  // A frontendes history → OpenAI messages formátum
+  const messages = [
+    {
+      role: "system",
+      content:
+        "You are a friendly English conversation tutor. " +
+        "Speak only in English. Use simple vocabulary and short sentences. " +
+        "The student is around B1 level. If the student makes a mistake, " +
+        "correct it gently and provide a better version."
+    },
+    ...history.map((m)
